@@ -29,22 +29,22 @@ Example
     acts_as_itemized
     
     def after_initialize
+      
       add_items(
-        {:goals => {:count => 12, :columns => [:content, :score, :checked]}},
-        {:cake_histories  => {:count => 6}},
+        {:goals => {:count => 12, :columns => [:content, :checked]} },
+        {:cakes => {:count => 2 }
       )
+      
     end
     
   end
   
   rf = RegistrationForm.new
   
-  rf.progress_goal_content_1 = 'To achieve great acts of panda.'
-  rf.progress_goal_score_1 = 15
-  rf.progress_goal_checked_1 = false
+  rf.goal_content_1 = 'To achieve great acts of panda.'
+  rf.goal_checked_1 = false
   
-  rf.progress_goal_content_2 = 'To eat tiny donuts.'
-  rf.progress_goal_score_2 = 25
-  rf.progress_goal_checked_2 = true
+  rf.goal_content_2 = 'To eat tiny donuts.'
+  rf.goal_checked_2 = true
   
   rf.save

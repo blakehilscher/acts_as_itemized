@@ -10,7 +10,7 @@ module ActsAsItemized
       send :extend, SingletonMethods
     
       after_save :commit_item_changes
-              
+      
       has_many :itemized_items, :order => "position" do
         def where_type(conditions)
           conditions = (conditions.is_a? Array) ? conditions.collect(&:to_s) : conditions.to_s
