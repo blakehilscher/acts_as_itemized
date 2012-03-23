@@ -1,0 +1,50 @@
+ActsAsItemized
+==============
+
+This acts_as extension provides the ability to create virtual columns on the fly. The virtual items are stored in itemized_items.
+
+
+Migration
+======
+
+def self.up
+  create_table :itemized_items do |t|
+    t.integer :parent_id
+    t.string  :parent_type
+    t.integer :position
+    t.integer :score
+    t.boolean :checked
+    t.string  :name
+    t.string  :content
+    t.string  :item_type
+    t.timestamps
+  end
+end
+
+
+Example
+=======
+  
+  class RegistrationForm < ActiveRecord::Base
+    acts_as_itemized
+    
+    def after_initialize
+      add_items(
+        {:goals => {:count => 12, :columns => [:content, :score, :checked]}},
+        {:cake_histories  => {:count => 6}},
+      )
+    end
+    
+  end
+  
+  rf = RegistrationForm.new
+  
+  rf.progress_goal_content_1 = 'To achieve great acts of panda.'
+  rf.progress_goal_score_1 = 15
+  rf.progress_goal_checked_1 = false
+  
+  rf.progress_goal_content_2 = 'To eat tiny donuts.'
+  rf.progress_goal_score_2 = 25
+  rf.progress_goal_checked_2 = true
+  
+  rf.save
