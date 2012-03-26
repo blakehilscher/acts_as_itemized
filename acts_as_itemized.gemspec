@@ -1,6 +1,5 @@
-% cat hola.gemspec
 Gem::Specification.new do |s|
-  s.name        = 'Acts as List'
+  s.name        = 'acts_as_itemized'
   s.version     = '0.1.0'
   s.date        = '2012-03-26'
   s.summary     = "Gem version of acts_as_itemized library."
