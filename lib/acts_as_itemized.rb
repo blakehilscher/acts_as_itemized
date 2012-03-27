@@ -26,9 +26,6 @@ module ActsAsItemized
         def contents
           all.collect(&:content)
         end
-        def notes
-          all.collect(&:note)
-        end
         def to_h
           all.inject({}) do |result, item|
             key = item.item_type
@@ -100,8 +97,8 @@ module ActsAsItemized
       item_changes.each{|key,values| @attributes.delete(key) }
       super
     end
-
-
+    
+    
     protected
   
     # ITEM CHANGES
@@ -244,8 +241,7 @@ module ActsAsItemized
       end
       @attributes[key] = value
     end
-  
-  
+    
     def get_item_record(key)
       options = self.send("#{key}_options")
       # get through delegate, if defined
