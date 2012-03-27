@@ -1,7 +1,7 @@
 ActsAsItemized
 ==============
 
-This acts_as extension provides the ability to create virtual columns on the fly. The virtual items are stored in itemized_items.
+This acts_as extension provides the ability to create virtual mutable columns on activerecord models. The items are stored in itemized_items. 
 
 
 Migration
@@ -10,43 +10,46 @@ Migration
 def change
 
   create_table :itemized_items do |t|
-    t.integer :owner_id
-    t.string  :owner_type
+    t.integer :itemizable_id
+    t.string  :itemizable_type
+    t.string  :item_type
     t.integer :position
     t.boolean :checked
     t.string  :content
     t.integer :score
-    t.string  :item_type
     t.timestamps
   end
 
 end
 
 
-
 Example
 =======
   
-  class RegistrationForm < ActiveRecord::Base
-    acts_as_itemized
-    
-    def after_initialize
-      
-      add_items(
-        {:goals => {:count => 12, :columns => [:content, :checked]} },
-        {:cakes => {:count => 2 }
-      )
-      
-    end
-    
+  class ItemizedItem < ActiveRecord::Base
+    belongs_to :itemizable, :polymorphic => true
   end
   
-  rf = RegistrationForm.new
+  class Form < ActiveRecord::Base
+    acts_as_itemized
+
+    after_initialize :initialize_items
+
+    def initialize_items
+      itemize :first_name, :last_name
+      itemize :instruments => {:count => 5, :columns => [:content, :checked] }
+    end
+
+  end
   
-  rf.goal_content_1 = 'To achieve great acts of panda.'
-  rf.goal_checked_1 = false
+  f = Form.new
   
-  rf.goal_content_2 = 'To eat tiny donuts.'
-  rf.goal_checked_2 = true
+  f.first_name = 'blake'
+  f.last_name = 'haven'
+  f.instrument_content_1 = 'Trumpet'
+  f.instrument_checked_1 = true
+  f.instrument_content_2 = 'Violin'
+  f.instrument_checked_2 = false
   
-  rf.save
+  f.save
+  
