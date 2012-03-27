@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'acts_as_itemized'
-  s.version     = '0.1.2'
+  s.version     = '0.1.3'
   s.date        = '2012-03-26'
   s.summary     = "Gem version of acts_as_itemized library."
   s.description = "Create virtual mutable columns on activerecord models."
