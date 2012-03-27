@@ -11,7 +11,7 @@ module ActsAsItemized
     
       after_save :commit_item_changes
       
-      has_many :itemized_items, :order => "position" do
+      has_many :itemized_items, :as => :itemizable, :order => :position do
         def where_type(conditions)
           conditions = (conditions.is_a? Array) ? conditions.collect(&:to_s) : conditions.to_s
           scoped(:conditions => {:item_type => conditions } )
@@ -26,14 +26,7 @@ module ActsAsItemized
         def contents
           all.collect(&:content)
         end
-        def to_h
-          all.inject({}) do |result, item|
-            key = item.item_type
-            result[key] = ( result[key] || {} ).merge(item.to_h)
-            result
-          end
-        end
-      
+        
       end
     
     end
@@ -41,43 +34,24 @@ module ActsAsItemized
   end
 
   module SingletonMethods
-    def items(type = false)
-      sql = (sql || "") + "itemized_items.item_type = ? AND " if type
-      sql = (sql || "") + "itemized_items.parent_id IN (?) "
-      conditions = [sql] 
-      conditions << type.to_s if type
-      conditions << all
+    def itemized_items(type = false)
+      conditions = {}
+      conditions[:itemized_items] = {:item_type => type} unless type.blank?
+      conditions[:itemized_items] = {:itemizable_id => all, :itemizable_type => self.name} unless all.blank?
       ItemizedItem.scoped(:conditions => conditions)
     end
   end
 
   module InstanceMethods
   
-    def items
-      itemized_items
+    def itemized_options
+      @itemized_options ||= {}
+    end
+    def itemized_options_with_sorting
+      itemized_options.sort_by{|k,io| io[:position] || 0}
     end
     
-    def item_options
-      @item_options ||= {}
-    end
-    def item_options_with_sorting
-      item_options.sort_by{|k,io| io[:position] || 0}
-    end
-
-    # Load items into @attributes from self.itemized_items
-    def eager_load_items
-      item_options.each do |type_many, options|
-        type_one = type_many.to_s.singularize
-        item_options[type_many][:count].times do |id|
-          position = id + 1
-          options[:columns].each do |column|
-            self.send("#{type_one}_#{column}_#{position}")
-          end
-        end
-      end
-      self.attributes
-    end
-
+    
     # ITEM CHANGES
 
     def item_changes
@@ -102,16 +76,16 @@ module ActsAsItemized
     protected
   
     # ITEM CHANGES
-    def add_items(*args)
+    def itemize(*args)
       args.each do |arg|
-        next if item_options.has_key?(arg.is_a?(Hash) ? arg.keys.first : arg)
-        options = item_options_with_defaults(arg)
-        @item_options.merge!(options)
+        next if itemized_options.has_key?(arg.is_a?(Hash) ? arg.keys.first : arg)
+        options = itemized_options_with_defaults(arg)
+        @itemized_options.merge!(options)
         create_item_accessors(options)
       end
     end
     
-    def item_options_with_defaults(arg)
+    def itemized_options_with_defaults(arg)
       key = arg.is_a?(Hash) ? arg.keys.first : arg.to_sym
       options = arg.is_a?(Hash) ? arg[key] : {}
       options = {
@@ -125,7 +99,7 @@ module ActsAsItemized
       options[:tabindex_score] = tabindex_with_auto_increment(options[:count], options[:tabindex_score][0], options[:tabindex_score][1], options[:tabindex_score][2]) if options[:tabindex_score]
       return {key => options}
     end
-  
+    
     def set_item_change(changes)
       changes.each do |key, value|
         next if attributes[key] == value
@@ -188,40 +162,61 @@ module ActsAsItemized
   
     # ITEM CRUD
   
-    def create_item_accessors(_item_options)
-      _item_options.each do |type_many, options|
-        # singular item
-        type_one = type_many.to_s.singularize
-        # total
-        count = _item_options[type_many][:count]
-        # access all of type
-        class_eval <<-END, __FILE__, (__LINE__+1)
-          def #{type_many}
-            @#{type_many} ||= #{count}.times.inject([]){|r,position| r << self.items.detect{|i| i.item_type == '#{type_many}' && i.position == position }; r}
-          end
-        END
-        # for each item type this many times
-        count.times do |id|
-          position = id + 1
-          # individual accessors
-          options[:columns].each do |column|
-            # create getter, setter, and config
-            next if self.respond_to? "#{type_one}_#{column}_#{position}"
-            class_eval <<-END, __FILE__, (__LINE__+1)
-              def #{type_one}_#{column}_#{position}
-                get_item_value("#{type_one}_#{column}_#{position}")
-              end
-              def #{type_one}_#{column}_#{position}=(value)
-                set_item_value("#{type_one}_#{column}_#{position}", value)
-              end
-              def #{type_one}_#{column}_#{position}_options
-                @#{type_one}_#{column}_#{position}_options ||= item_options[:#{type_many}].merge({ :item_type => '#{type_many}', :column => '#{column}', :position => #{position} })
-              end
-            END
-          end
+    def create_item_accessors(_itemized_options)
+      _itemized_options.each do |type_many, options|
+        # items in this set
+        count = _itemized_options[type_many][:count]
+        # class_eval accessors
+        if count == 1 && options[:columns].count == 1
+          # create a single accessor if there is only one item and one type
+          create_one_accessor type_many, options[:columns].first
+        else
+          # create a many accessors if there are multiple items or types
+          create_many_accessors type_many, options[:columns], count
         end
       end
     
+    end
+    
+    def create_one_accessor(type_many, column)
+      type_one = type_many.to_s.singularize
+      return if self.respond_to? "#{type_one}"
+      class_eval <<-END, __FILE__, (__LINE__+1)
+        def #{type_one}
+          get_item_value("#{type_one}")
+        end
+        def #{type_one}=(value)
+          set_item_value("#{type_one}", value)
+        end
+        def #{type_one}_options
+          @#{type_one}_options ||= itemized_options[:#{type_many}].merge({ :item_type => '#{type_many}', :column => '#{column}', :position => 1 })
+        end
+      END
+    end
+    
+    def create_many_accessors(type_many, columns, count)
+      type_one = type_many.to_s.singularize
+      # for each item type this many times
+      count.times do |id|
+        position = id + 1
+        # individual accessors
+        columns.each do |column|
+          # create getter, setter, and config
+          next if self.respond_to? "#{type_one}_#{column}_#{position}"
+          class_eval <<-END, __FILE__, (__LINE__+1)
+            def #{type_one}_#{column}_#{position}
+              get_item_value("#{type_one}_#{column}_#{position}")
+            end
+            def #{type_one}_#{column}_#{position}=(value)
+              set_item_value("#{type_one}_#{column}_#{position}", value)
+            end
+            def #{type_one}_#{column}_#{position}_options
+              @#{type_one}_#{column}_#{position}_options ||= itemized_options[:#{type_many}].merge({ :item_type => '#{type_many}', :column => '#{column}', :position => #{position} })
+            end
+          END
+        end
+      end
+
     end
   
   
@@ -247,14 +242,14 @@ module ActsAsItemized
       # get through delegate, if defined
       return self.send(options[:through]).send(key) if options[:through] && self.respond_to?(options[:through]) && !self.send(options[:through]).blank?
       # get through itemized_item record
-      return nil unless item = items.detect{|i| i.item_type == options[:item_type] && i.position == options[:position] }
+      return nil unless item = itemized_items.detect{|i| i.item_type == options[:item_type] && i.position == options[:position] }
       item.send options[:column]
     end
 
     def update_or_create_item(key, value)
       options = self.send("#{key}_options")
       # find or create
-      item = items.detect{|i| i.item_type == options[:item_type] && i.position == options[:position]} || create_item(options[:item_type], options[:position])
+      item = itemized_items.detect{|i| i.item_type == options[:item_type] && i.position == options[:position]} || create_item(options[:item_type], options[:position])
       # update
       item.send("#{options[:column]}=", value)
       item.save
@@ -262,10 +257,9 @@ module ActsAsItemized
   
     def create_item(item_type, position, conditions = {})
       record = conditions.merge({:item_type => item_type.to_s, :position => position})
-      items.create(record)
+      itemized_items.create(record)
     end
-
-
+    
   end
 
 end
