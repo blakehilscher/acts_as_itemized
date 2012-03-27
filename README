@@ -3,6 +3,8 @@ ActsAsItemized
 
 This acts_as extension provides the ability to create virtual mutable columns on activerecord models. The items are stored in itemized_items. 
 
+Demo rails application: https://github.com/blakehilscher/acts_as_itemized-rails
+
 
 Migration
 ======
@@ -25,6 +27,7 @@ end
 
 Example
 =======
+  
   
   class ItemizedItem < ActiveRecord::Base
     belongs_to :itemizable, :polymorphic => true
