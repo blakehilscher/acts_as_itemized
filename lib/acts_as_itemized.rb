@@ -72,9 +72,39 @@ module ActsAsItemized
       super
     end
     
+    def each_itemized(*args, &block)
+      # item_type
+      type_many = args.first
+      type_one = type_many.to_s.singularize
+      # options
+      options = args.extract_options!
+      options.assert_valid_keys(:columns)
+      # itemized_options
+      itemized_option = self.itemized_options[type_many]
+      count = itemized_option[:count]
+      columns = options[:columns] || itemized_option[:columns]
+      # iterate
+      result = []
+      columns.each do |column|
+        count.times do |i|
+          pos = i + 1
+          # build key
+          key = type_one
+          key = "#{key}_#{column}_#{pos}" unless count == 1 && columns.count == 1
+          # pass key
+          if block_given?
+            result << yield(key)
+          else
+            result << self.send(key)
+          end
+        end
+      end
+      result
+    end
+    
     
     protected
-  
+    
     # ITEM CHANGES
     def itemize(*args)
       args.each do |arg|
